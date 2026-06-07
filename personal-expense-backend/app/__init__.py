@@ -1,2 +1,0 @@
-"""Personal expense backend package."""
-

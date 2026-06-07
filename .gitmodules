@@ -1,0 +1,9 @@
+[submodule "pingou-o-que-backend"]
+	path = pingou-o-que-backend
+	url = git@github.com-personal:Macwdo/pingou-o-que-backend.git
+[submodule "pingou-o-que-frontend"]
+	path = pingou-o-que-frontend
+	url = git@github.com-personal:Macwdo/pingou-o-que-frontend.git
+[submodule "pingou-o-que-landing-page"]
+	path = pingou-o-que-landing-page
+	url = git@github.com-personal:Macwdo/pingou-o-que-landing-page.git
