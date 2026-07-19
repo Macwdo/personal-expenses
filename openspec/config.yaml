@@ -1,20 +1,23 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  This is the parent coordination repository for Pingou o que?. The app code is
+  owned by child Git submodule repositories:
+  - pingou-o-que-frontend: authenticated Next.js product UI.
+  - pingou-o-que-backend: Django/DRF API backed by PostgreSQL.
+  - pingou-o-que-landing-page: public Next.js marketing site.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+  Parent OpenSpec artifacts are only for cross-repo or product-level behavior.
+  App-only OpenSpec artifacts must live in the owning child repository.
+
+rules:
+  proposal:
+    - State which child repos are affected.
+    - Use this parent OpenSpec tree only for cross-repo coordination.
+    - Move app-only changes to the owning child repo instead of expanding the parent scope.
+  design:
+    - Keep implementation ownership aligned with the child repo that owns the code.
+    - Include submodule pointer updates only when child repo commits are part of the change.
+  tasks:
+    - Separate parent coordination tasks from child implementation tasks.
+    - Name validation commands with the repo they must run from.
