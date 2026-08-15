@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pingou Feature Environment"
+  short_description: "Create worktrees and wire an isolated stack"
+  default_prompt: "Use $pingou-feature-env to prepare isolated worktrees and a root integration environment for this feature."

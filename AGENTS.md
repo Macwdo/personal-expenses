@@ -1,5 +1,25 @@
 # Repository Guidelines
 
+## Required Workspace Skills
+
+Workspace procedures live in `.agents/skills/`. Load and follow the matching
+skill **before** acting; do not reconstruct these workflows from memory.
+
+| Situation | Required skill |
+| --- | --- |
+| Create a `.env`/`.env.<feature>`, start, inspect, seed, stop, or destroy any environment | `$pingou-env` |
+| Start a feature, fix, or refactor that needs a branch, worktree, parallel workers, or an isolated stack | `$pingou-feature-env` |
+| Merge finished worktrees into `main`/`master` and push | `$merge-work` |
+
+Rules:
+
+- Prefer the skill over an equivalent hand-written command sequence. If a skill
+  and this file ever disagree on a command, the skill is authoritative for the
+  procedure and this file is authoritative for the durable rule.
+- Do not run the runtime through ad hoc `docker compose`, `docker`, or shell
+  workflows. Extend the root `Makefile` and the owning skill instead.
+- When a workspace procedure changes, update its skill in the same change.
+
 ## Project Structure & Module Organization
 
 This repository is a Git superproject with four app submodules:
@@ -21,8 +41,7 @@ utilities in `lib/`, Zustand stores in `stores/`, and static assets in
   (`lib/api/*`), hooks, and Zustand stores.
 - `pingou-o-que-backend`: Django/DRF API backed by PostgreSQL, with Celery
   workers and a LangGraph/DeepAgents chat agent. It owns models, serializers,
-  selectors, services, migrations, seed data, API tests, and the backend
-  `openspec/` artifacts (the only repo that still keeps OpenSpec).
+  selectors, services, migrations, fixture-backed seed data, and API tests.
 - `pingou-o-que-landing-page`: public marketing site. It owns public pages,
   marketing copy, visual sections, the CRM lead form, and shadcn-style UI.
 - `pingou-o-que-chat`: stateless Go service that relays chat events to browsers.
@@ -52,28 +71,46 @@ only token path is a `DEBUG`-only dev-token endpoint.
 
 ## Worktree And Ownership
 
+Follow `$pingou-feature-env` for the setup procedure. The durable rules are:
+
 - Use the parent repo for cross-repo product notes and commits that update child
   submodule pointers.
 - Do not implement app code from a parent-repo worktree.
 - Branch ownership and validation commands follow the repo that owns the change.
   A session may start in one child repo and still inspect siblings for context
   (e.g. checking backend routes when changing the frontend client).
-- OpenSpec artifacts now live only in `pingou-o-que-backend/openspec`; the root,
-  frontend, and landing-page no longer carry an `openspec/` tree.
+- Do not create OpenSpec artifacts or repository spec trees. Keep durable rules
+  in `AGENTS.md` and procedures in `.agents/skills/`.
+- Create worktrees with native Git under `.worktrees/` in the repository that
+  owns the change. Cross-app work needs one worktree per affected repository.
+- Assign each parallel worker a distinct writable worktree and bounded ownership
+  slice. Never let two workers edit the same worktree.
+- Integrate child worktrees through a root `.env.<feature>` whose `BACKEND_PATH`,
+  `FRONTEND_PATH`, `LANDING_PATH`, and `CHAT_PATH` select the relevant source
+  checkouts.
+- Validate and commit in each owning child repository before intentionally
+  updating its parent submodule pointer.
 
-## Mires AIW Usage
+## Workspace Environment Operations
 
-- For app-only work, run `mires-aiw create <branch-name>` inside the child repo
-  that owns the change.
-- For multi-app work, run
-  `mires-aiw workspace list --folder /home/macwdo/Codes/pingou-o-que` first,
-  then create worktrees for explicit child repo names.
-- Use `--all` only when the requested change truly touches every direct child
-  Git repo in this workspace.
-- Use parent-repo `mires-aiw create` only for parent-owned work such as
-  submodule pointer updates or workspace documentation.
+Follow `$pingou-env` for the commands. The durable rules are:
+
+- The root repository is the runtime workspace and the root `Makefile` is its
+  only supported operational interface.
+- `.env` is the default environment; anything else requires `ENV_FILE` on every
+  target in the session.
+- Never print, overwrite, or commit `.env` or `.env.<feature>`. The key required
+  by `AI_CHAT_MODEL` must be set locally before chat works.
+- Never allocate fixed host ports. Docker assigns them and Portless publishes
+  the stable URLs reported by `make urls`.
+- `make up`, `make dev`, and `make seed` reset fixture-owned domain data;
+  `make destroy` also deletes volumes and images. Confirm with the user before
+  running them when local state matters.
 
 ## Build, Test, and Development Commands
+
+For the integrated stack, use `$pingou-env` from the workspace root. The
+per-repository commands below are for validation and single-service work:
 
 - `cd pingou-o-que-backend && make up`: start PostgreSQL, run migrations, and serve Django on `8001`.
 - `cd pingou-o-que-backend && make celery-worker`: run the Celery worker (needed for chat replies).
@@ -126,6 +163,14 @@ right subagent's tool list in `apps/ai/subagents.py`.
 ## Testing Guidelines
 
 Backend tests use pytest, pytest-django, DRF `APIClient`, and PostgreSQL. Prefer shared helpers in `apps/api/tests/` and place new coverage in the owning app's `tests/` package. Name tests descriptively with `test_...`. The Go service is tested with `go test ./...`. No frontend test runner is currently configured; validate UI changes with lint, typecheck, build, and screenshots when behavior or layout changes.
+
+All bootstrap, demo, and local domain data must come from
+`pingou-o-que-backend/apps/api/fixtures/financial_seed.json`. Every backend
+model, relationship, business-state, or create/mutate-flow change must update
+that fixture and `apps/core/tests/test_seed.py` in the same change, with 10-20
+representative records per domain model or new business flow. Fixed
+infrastructure identities may remain singletons. Do not add bootstrap records
+via migrations, startup hooks, service defaults, or ad hoc scripts.
 
 ## Commit & Pull Request Guidelines
 

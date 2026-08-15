@@ -1,0 +1,4 @@
+interface:
+  display_name: "Merge Work"
+  short_description: "Merge all worktrees into main and push"
+  default_prompt: "Use $merge-work to merge every linked worktree into main and push."

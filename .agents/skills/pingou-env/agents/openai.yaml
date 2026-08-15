@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pingou Environment"
+  short_description: "Create and operate an isolated Pingou stack"
+  default_prompt: "Use $pingou-env to create or operate the selected workspace environment safely."

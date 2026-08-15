@@ -1,0 +1,272 @@
+name: "${COMPOSE_PROJECT_NAME:?set COMPOSE_PROJECT_NAME in the selected env file}"
+
+x-backend-environment: &backend-environment
+  SECRET_KEY: "${SECRET_KEY:?set SECRET_KEY in the selected env file}"
+  DEBUG: "${DEBUG:-1}"
+  ALLOWED_HOSTS: "${ALLOWED_HOSTS:-localhost,127.0.0.1,api}"
+  CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:?set CORS_ALLOWED_ORIGINS in the selected env file}"
+  CSRF_TRUSTED_ORIGINS: "${CSRF_TRUSTED_ORIGINS:-${CORS_ALLOWED_ORIGINS}}"
+  DATABASE_URL: "${DATABASE_URL:-}"
+  DATABASE_SSL_REQUIRE: "${DATABASE_SSL_REQUIRE:-0}"
+  POSTGRES_HOST: "${POSTGRES_HOST:-db}"
+  POSTGRES_PORT: "${POSTGRES_PORT:-5432}"
+  POSTGRES_DB: "${POSTGRES_DB:?set POSTGRES_DB in the selected env file}"
+  POSTGRES_USER: "${POSTGRES_USER:?set POSTGRES_USER in the selected env file}"
+  POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the selected env file}"
+  TEST_DATABASE_DB: "${TEST_DATABASE_DB:-test_pingou}"
+  REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
+  CELERY_BROKER_URL: "${CELERY_BROKER_URL:-redis://redis:6379/0}"
+  CELERY_RESULT_BACKEND: "${CELERY_RESULT_BACKEND:-redis://redis:6379/0}"
+  CELERY_WORKER_CONCURRENCY: "${CELERY_WORKER_CONCURRENCY:-2}"
+  AI_CHAT_MODEL: "${AI_CHAT_MODEL:?set AI_CHAT_MODEL in the selected env file}"
+  OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+  ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+  CHAT_STREAM_TTL_SECONDS: "${CHAT_STREAM_TTL_SECONDS:-300}"
+  CHAT_STREAM_MODE: "${CHAT_STREAM_MODE:-token}"
+  DJANGO_COLLECTSTATIC: "0"
+  DJANGO_MIGRATE: "0"
+
+x-backend-common: &backend-common
+  image: "${COMPOSE_PROJECT_NAME}-backend-dev"
+  pull_policy: never
+  build:
+    context: "${BACKEND_PATH:-./pingou-o-que-backend}"
+    dockerfile: Dockerfile
+  working_dir: /workspace
+  environment: *backend-environment
+  volumes:
+    - type: bind
+      source: "${BACKEND_PATH:-./pingou-o-que-backend}"
+      target: /workspace
+
+x-infrastructure-ready: &infrastructure-ready
+  db:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+
+x-next-healthcheck: &next-healthcheck
+  test:
+    - CMD
+    - bun
+    - -e
+    - "fetch('http://127.0.0.1:3000').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+  interval: 10s
+  timeout: 5s
+  retries: 30
+  start_period: 30s
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:?set POSTGRES_DB in the selected env file}"
+      POSTGRES_USER: "${POSTGRES_USER:?set POSTGRES_USER in the selected env file}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the selected env file}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  api:
+    <<: *backend-common
+    command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+    environment:
+      <<: *backend-environment
+      DJANGO_MIGRATE: "1"
+    depends_on: *infrastructure-ready
+    ports:
+      - target: 8000
+        published: "0"
+        host_ip: "${BIND_HOST:-127.0.0.1}"
+        protocol: tcp
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()"
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  celery-worker:
+    <<: *backend-common
+    command: ["celery", "-A", "config", "worker", "--loglevel=info"]
+    depends_on:
+      api:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    stop_grace_period: 30s
+
+  celery-beat:
+    <<: *backend-common
+    profiles: ["scheduler"]
+    command:
+      - celery
+      - -A
+      - config
+      - beat
+      - --loglevel=info
+      - --scheduler
+      - django_celery_beat.schedulers:DatabaseScheduler
+    depends_on:
+      api:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    stop_grace_period: 30s
+
+  flower:
+    <<: *backend-common
+    profiles: ["observability"]
+    command: ["celery", "-A", "config", "flower", "--address=0.0.0.0", "--port=5555"]
+    environment:
+      <<: *backend-environment
+      FLOWER_BASIC_AUTH: "${FLOWER_BASIC_AUTH:-}"
+    depends_on:
+      api:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - target: 5555
+        published: "0"
+        host_ip: "${BIND_HOST:-127.0.0.1}"
+        protocol: tcp
+
+  chat:
+    image: "${COMPOSE_PROJECT_NAME}-chat-dev"
+    pull_policy: never
+    build:
+      context: "${CHAT_PATH:-./pingou-o-que-chat}"
+      dockerfile: Dockerfile
+    environment:
+      PORT: "8080"
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
+      DJANGO_INTERNAL_URL: "http://api:8000"
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:?set CORS_ALLOWED_ORIGINS in the selected env file}"
+      LOG_FORMAT: "${CHAT_LOG_FORMAT:-console}"
+      LOG_LEVEL: "${CHAT_LOG_LEVEL:-info}"
+    depends_on:
+      api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - target: 8080
+        published: "0"
+        host_ip: "${BIND_HOST:-127.0.0.1}"
+        protocol: tcp
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    develop:
+      watch:
+        - action: rebuild
+          path: "${CHAT_PATH:-./pingou-o-que-chat}"
+          ignore:
+            - .git/
+            - .worktrees/
+            - pingou-o-que-chat
+
+  frontend:
+    image: "${COMPOSE_PROJECT_NAME}-frontend-dev"
+    pull_policy: never
+    build:
+      context: "${FRONTEND_PATH:-./pingou-o-que-frontend}"
+      dockerfile: Dockerfile
+    init: true
+    working_dir: /opt/app/workspace
+    environment:
+      NODE_ENV: development
+      NODE_PATH: /opt/app/node_modules
+      NEXT_TELEMETRY_DISABLED: "1"
+      EXPENSE_API_URL: "http://api:8000"
+      NEXT_PUBLIC_EXPENSE_API_URL: "${PUBLIC_BACKEND_URL:?set PUBLIC_BACKEND_URL in the selected env file}"
+      NEXT_PUBLIC_CHAT_API_URL: "${PUBLIC_CHAT_URL:?set PUBLIC_CHAT_URL in the selected env file}"
+      DEV_ALLOWED_ORIGINS: "${FRONTEND_HOST:?set FRONTEND_HOST in the selected env file}"
+      WATCHPACK_POLLING: "${WATCHPACK_POLLING:-false}"
+    depends_on:
+      api:
+        condition: service_healthy
+      chat:
+        condition: service_healthy
+    ports:
+      - target: 3000
+        published: "0"
+        host_ip: "${BIND_HOST:-127.0.0.1}"
+        protocol: tcp
+    volumes:
+      - type: bind
+        source: "${FRONTEND_PATH:-./pingou-o-que-frontend}"
+        target: /opt/app/workspace
+      - frontend_node_modules:/opt/app/workspace/node_modules
+      - frontend_next:/opt/app/workspace/.next
+    healthcheck: *next-healthcheck
+
+  landing:
+    image: "${COMPOSE_PROJECT_NAME}-landing-dev"
+    pull_policy: never
+    build:
+      context: "${LANDING_PATH:-./pingou-o-que-landing-page}"
+      dockerfile: Dockerfile
+    init: true
+    working_dir: /opt/app/workspace
+    environment:
+      NODE_ENV: development
+      NODE_PATH: /opt/app/node_modules
+      NEXT_TELEMETRY_DISABLED: "1"
+      EXPENSE_API_URL: "http://api:8000"
+      DEV_ALLOWED_ORIGINS: "${LANDING_HOST:?set LANDING_HOST in the selected env file}"
+      WATCHPACK_POLLING: "${WATCHPACK_POLLING:-false}"
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - target: 3000
+        published: "0"
+        host_ip: "${BIND_HOST:-127.0.0.1}"
+        protocol: tcp
+    volumes:
+      - type: bind
+        source: "${LANDING_PATH:-./pingou-o-que-landing-page}"
+        target: /opt/app/workspace
+      - landing_node_modules:/opt/app/workspace/node_modules
+      - landing_next:/opt/app/workspace/.next
+    healthcheck: *next-healthcheck
+
+volumes:
+  postgres_data:
+  redis_data:
+  frontend_node_modules:
+  frontend_next:
+  landing_node_modules:
+  landing_next:
