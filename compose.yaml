@@ -58,7 +58,7 @@ x-next-healthcheck: &next-healthcheck
 
 services:
   db:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:0.8.6-pg16-trixie
     environment:
       POSTGRES_DB: "${POSTGRES_DB:?set POSTGRES_DB in the selected env file}"
       POSTGRES_USER: "${POSTGRES_USER:?set POSTGRES_USER in the selected env file}"
@@ -73,7 +73,7 @@ services:
       start_period: 5s
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.10-alpine3.21
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
@@ -101,7 +101,7 @@ services:
         - CMD
         - python
         - -c
-        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()"
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=2).read()"
       interval: 5s
       timeout: 3s
       retries: 30
@@ -118,6 +118,23 @@ services:
       redis:
         condition: service_healthy
     stop_grace_period: 30s
+
+  backend-tests:
+    <<: *backend-common
+    profiles: ["test"]
+    image: "${COMPOSE_PROJECT_NAME}-backend-test"
+    build:
+      context: "${BACKEND_PATH:-./pingou-o-que-backend}"
+      dockerfile: Dockerfile
+      target: test
+    environment:
+      <<: *backend-environment
+      DJANGO_MIGRATE: "0"
+      TESTING: "true"
+      TEST_DATABASE_URL: "postgresql://${POSTGRES_USER:?set POSTGRES_USER in the selected env file}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the selected env file}@db:5432/${TEST_DATABASE_DB:-test_pingou}"
+      TEST_REDIS_URL: "redis://redis:6379/1"
+    depends_on: *infrastructure-ready
+    command: ["pytest"]
 
   celery-beat:
     <<: *backend-common
@@ -210,6 +227,7 @@ services:
       NODE_PATH: /opt/app/node_modules
       NEXT_TELEMETRY_DISABLED: "1"
       EXPENSE_API_URL: "http://api:8000"
+      CHAT_API_URL: "http://chat:8080"
       NEXT_PUBLIC_EXPENSE_API_URL: "${PUBLIC_BACKEND_URL:?set PUBLIC_BACKEND_URL in the selected env file}"
       NEXT_PUBLIC_CHAT_API_URL: "${PUBLIC_CHAT_URL:?set PUBLIC_CHAT_URL in the selected env file}"
       DEV_ALLOWED_ORIGINS: "${FRONTEND_HOST:?set FRONTEND_HOST in the selected env file}"

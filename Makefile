@@ -3,19 +3,27 @@ ENV_NAME ?=
 WAIT_TIMEOUT ?= 300
 SERVICE ?=
 ARGS ?=
+PYTEST_ARGS ?=
 PYTHON ?= python3
 
 COMPOSE = docker compose --env-file "$(ENV_FILE)" --file compose.yaml
 
 .NOTPARALLEL: build up
 
-.PHONY: env-init config build build-backend build-chat build-frontend build-landing up dev watch stop down destroy ps logs restart portless-up portless-down urls doctor migrate seed manage shell db-shell redis-cli scheduler flower
+.PHONY: env-init config check-tools test-backend build build-backend build-chat build-frontend build-landing up dev watch stop down destroy ps logs restart portless-up portless-down urls doctor migrate seed manage shell db-shell redis-cli scheduler flower
 
 env-init:
 	@$(PYTHON) -m tools.dev.init_env --env-file "$(ENV_FILE)" $(if $(ENV_NAME),--env-name "$(ENV_NAME)",)
 
 config:
 	@$(COMPOSE) config
+
+check-tools:
+	@$(PYTHON) -m unittest discover -s tools/dev/tests -v
+
+test-backend:
+	$(COMPOSE) --profile test build backend-tests
+	$(COMPOSE) --profile test run --rm backend-tests pytest -p no:cacheprovider $(PYTEST_ARGS)
 
 build: build-backend build-chat build-frontend build-landing
 
@@ -46,12 +54,18 @@ stop:
 	$(COMPOSE) stop $(SERVICE)
 
 down:
-	$(COMPOSE) down --remove-orphans
-	@$(PYTHON) -m tools.dev.portless_routes remove --env-file "$(ENV_FILE)"
+	@compose_status=0; route_status=0; \
+		$(COMPOSE) down --remove-orphans || compose_status=$$?; \
+		$(PYTHON) -m tools.dev.portless_routes remove --env-file "$(ENV_FILE)" || route_status=$$?; \
+		[ $$compose_status -eq 0 ] || exit $$compose_status; \
+		exit $$route_status
 
 destroy:
-	$(COMPOSE) down --remove-orphans --volumes --rmi local
-	@$(PYTHON) -m tools.dev.portless_routes remove --env-file "$(ENV_FILE)"
+	@compose_status=0; route_status=0; \
+		$(COMPOSE) down --remove-orphans --volumes --rmi local || compose_status=$$?; \
+		$(PYTHON) -m tools.dev.portless_routes remove --env-file "$(ENV_FILE)" || route_status=$$?; \
+		[ $$compose_status -eq 0 ] || exit $$compose_status; \
+		exit $$route_status
 
 ps:
 	@$(COMPOSE) ps --all
@@ -73,7 +87,7 @@ urls:
 
 doctor:
 	@docker info >/dev/null
-	@portless doctor
+	@portless list >/dev/null
 
 migrate: build-backend
 	$(COMPOSE) run --rm -e DJANGO_MIGRATE=0 api python manage.py migrate --no-input
