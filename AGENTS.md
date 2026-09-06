@@ -7,9 +7,7 @@ skill **before** acting; do not reconstruct these workflows from memory.
 
 | Situation | Required skill |
 | --- | --- |
-| Create a `.env`/`.env.<feature>`, start, inspect, seed, stop, or destroy any environment | `$pingou-env` |
-| Start a feature, fix, or refactor that needs a branch, worktree, parallel workers, or an isolated stack | `$pingou-feature-env` |
-| Merge finished worktrees into `main`/`master` and push | `$merge-work` |
+| Create the local `.env`, start, inspect, seed, stop, or destroy the environment | `$pingou-env` |
 
 Rules:
 
@@ -69,25 +67,27 @@ PostgreSQL is the only persistent datastore (including the LangGraph
 checkpointer that holds conversation history). There is no real auth yet: the
 only token path is a `DEBUG`-only dev-token endpoint.
 
-## Worktree And Ownership
+## Branch And Ownership
 
-Follow `$pingou-feature-env` for the setup procedure. The durable rules are:
+Work directly in each repository's primary checkout and primary branch. The
+durable rules are:
 
 - Use the parent repo for cross-repo product notes and commits that update child
   submodule pointers.
-- Do not implement app code from a parent-repo worktree.
+- Implement app code in the owning child repository's primary checkout, never
+  in the parent repository.
 - Branch ownership and validation commands follow the repo that owns the change.
   A session may start in one child repo and still inspect siblings for context
   (e.g. checking backend routes when changing the frontend client).
+- Work on `main` in the parent, backend, frontend, and landing repositories.
+  The chat repository currently uses `master` as its upstream primary branch;
+  use it directly until that upstream branch is intentionally renamed.
+- Do not create feature branches or Git worktrees unless the user explicitly
+  changes this temporary working preference.
 - Do not create OpenSpec artifacts or repository spec trees. Keep durable rules
   in `AGENTS.md` and procedures in `.agents/skills/`.
-- Create worktrees with native Git under `.worktrees/` in the repository that
-  owns the change. Cross-app work needs one worktree per affected repository.
-- Assign each parallel worker a distinct writable worktree and bounded ownership
-  slice. Never let two workers edit the same worktree.
-- Integrate child worktrees through a root `.env.<feature>` whose `BACKEND_PATH`,
-  `FRONTEND_PATH`, `LANDING_PATH`, and `CHAT_PATH` select the relevant source
-  checkouts.
+- If parallel workers are explicitly requested, give them disjoint file
+  ownership and coordinate their edits in the primary checkout.
 - Validate and commit in each owning child repository before intentionally
   updating its parent submodule pointer.
 
@@ -97,10 +97,11 @@ Follow `$pingou-env` for the commands. The durable rules are:
 
 - The root repository is the runtime workspace and the root `Makefile` is its
   only supported operational interface.
-- `.env` is the default environment; anything else requires `ENV_FILE` on every
-  target in the session.
-- Never print, overwrite, or commit `.env` or `.env.<feature>`. The key required
-  by `AI_CHAT_MODEL` must be set locally before chat works.
+- `.env` is the default environment and points at the four primary child
+  checkouts. Do not create `.env.<feature>` environments unless explicitly
+  requested.
+- Never print, overwrite, or commit `.env` or any other local environment file.
+  The key required by `AI_CHAT_MODEL` must be set locally before chat works.
 - Never allocate fixed host ports. Docker assigns them and Portless publishes
   the stable URLs reported by `make urls`.
 - `make up`, `make dev`, and `make seed` reset fixture-owned domain data;

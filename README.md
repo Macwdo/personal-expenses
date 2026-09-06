@@ -87,7 +87,6 @@ make dev                         # start everything, register aliases, then watc
 make logs SERVICE=celery-worker  # follow one service
 make ps                          # inspect this environment only
 make urls                        # print stable Portless URLs
-make list-worktrees              # list worktree environments and start commands
 make doctor                      # check Docker and Portless
 make seed                        # reset this environment from the backend fixture
 make manage ARGS="createsuperuser"
@@ -105,62 +104,19 @@ and locally built images. Use the Make targets as the supported interface:
 they also serialize the two Bun image builds and keep Portless aliases
 synchronized.
 
-## One isolated stack per worktree
-
-Run `make list-worktrees` to see every configured environment, its selected app
-branches, and the exact `make up ENV_FILE=...` command that starts it.
-
-Isolation has three parts:
-
-1. a unique `COMPOSE_PROJECT_NAME` namespaces containers, network, and volumes;
-2. Docker selects free host ports and Portless exposes unique stable aliases;
-3. the four `*_PATH` variables select the exact source checkouts mounted or
-   built by that stack.
-
-For a worktree of this parent repository, initialize its submodules and create
-an environment inside that worktree:
-
-```bash
-git worktree add ../pingou-o-que-feature-x -b feature-x
-cd ../pingou-o-que-feature-x
-git submodule update --init --recursive
-make env-init ENV_NAME=feature-x
-make up
-```
-
-If the feature uses independent child-repository worktrees, keep the Compose
-file in this root and point an environment file at those checkouts:
-
-```bash
-make env-init ENV_FILE=.env.feature-x ENV_NAME=feature-x
-$EDITOR .env.feature-x
-make up ENV_FILE=.env.feature-x
-```
-
-For example, `.env.feature-x` can contain absolute paths like:
-
-```dotenv
-BACKEND_PATH=/home/macwdo/Codes/pingou-o-que/pingou-o-que-backend/.worktrees/feature-x
-FRONTEND_PATH=/home/macwdo/Codes/pingou-o-que/pingou-o-que-frontend/.worktrees/feature-x
-LANDING_PATH=/home/macwdo/Codes/pingou-o-que/pingou-o-que-landing-page/.worktrees/feature-x
-CHAT_PATH=/home/macwdo/Codes/pingou-o-que/pingou-o-que-chat/.worktrees/feature-x
-```
-
-Only paths for repositories changed by the feature need to be replaced; the
-others can continue pointing at the main submodule checkouts. The generator
-combines `ENV_NAME` with a checksum of the root path, so two worktrees get
-different Compose projects and Portless aliases without manually allocating
-ports. Next.js reads public URLs at process startup, so run `make up` again
-after changing an environment file; Compose will recreate the affected
-containers and refresh the aliases.
-
 ## Working model
 
 Use the parent repository for cross-repository infrastructure, runtime
 coordination, and submodule pointer updates. Use each child repository for its
 app code, tests, and validation. This workspace does not use OpenSpec or
 repository spec trees; durable rules live in `AGENTS.md`. Use `$pingou-env` for
-the workspace lifecycle and `$pingou-feature-env` for isolated feature setup.
+the workspace lifecycle.
+
+Work directly in the primary checkout and primary branch of every repository:
+`main` for the parent, backend, frontend, and landing repositories, and
+`master` for the chat repository while that remains its upstream primary
+branch. Do not create feature branches or Git worktrees unless this temporary
+preference is explicitly changed.
 
 After cloning, initialize submodules:
 
@@ -168,16 +124,9 @@ After cloning, initialize submodules:
 git submodule update --init --recursive
 ```
 
-For app-only work, create the worktree from the owning child repository:
-
-```bash
-cd /home/macwdo/Codes/pingou-o-que/pingou-o-que-frontend
-git worktree add ../pingou-o-que-frontend-change-example -b change/example
-```
-
-For cross-app work, create a worktree from each owning child repository and
-point one root `.env.<feature>` at the resulting absolute paths. Give each
-parallel worker a distinct worktree; never share one writable checkout.
+The root `.env` points Compose at these primary child checkouts. If parallel
+workers are explicitly requested, give them disjoint file ownership and
+coordinate their edits in the same primary checkout.
 
 ## Fixture-backed development data
 

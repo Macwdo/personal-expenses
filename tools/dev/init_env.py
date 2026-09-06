@@ -26,7 +26,7 @@ def environment_name(explicit_name: str | None) -> str:
 
 def slugify(value: str) -> str:
     slug = re.sub(r"[^a-z0-9-]+", "-", value.lower().replace("_", "-"))
-    return slug.strip("-")[:32] or "worktree"
+    return slug.strip("-")[:32] or "workspace"
 
 
 def project_name(name: str) -> str:
@@ -82,7 +82,7 @@ def write_exclusive(destination: Path, content: str) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Create a worktree-local Compose environment file."
+        description="Create the local Compose environment file."
     )
     parser.add_argument("--env-file", default=".env")
     parser.add_argument("--env-name")

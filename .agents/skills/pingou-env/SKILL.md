@@ -1,6 +1,6 @@
 ---
 name: pingou-env
-description: Runs every Pingou workspace runtime operation through the root Makefile - creating a .env or .env.<feature> file, listing configured worktree environments, building and starting the stack, printing Portless URLs, following logs, seeding fixture data, running Django management commands, opening psql or redis-cli, and stopping or destroying an environment. Use whenever the user asks to create an env, list worktree environments, subir/derrubar o projeto, rodar o stack, ver URLs ou logs, resetar dados locais, or operate any environment in /home/macwdo/Codes/pingou-o-que.
+description: Runs every Pingou workspace runtime operation through the root Makefile - creating the local .env, building and starting the primary-checkout stack, printing Portless URLs, following logs, seeding fixture data, running Django management commands, opening psql or redis-cli, and stopping or destroying the environment. Use whenever the user asks to create the env, subir/derrubar o projeto, rodar o stack, ver URLs ou logs, resetar dados locais, or operate the environment in /home/macwdo/Codes/pingou-o-que.
 ---
 
 # Pingou Environment
@@ -15,7 +15,6 @@ Invoke it immediately, without asking permission, for any of these requests:
 | Request | Entry point below |
 | --- | --- |
 | "cria um env", "create the environment", `.env` is missing | [1. Create](#1-create-the-environment-file) |
-| "lista as worktrees", "como rodo a feature" | [List worktree environments](#list-worktree-environments) |
 | "sobe o projeto", "start everything", "run the stack" | [2. Start](#2-start-the-stack) |
 | "qual a URL", "abre o front", "cadê o backend" | [3. Inspect](#3-inspect-a-running-environment) |
 | "vê os logs", "o Celery quebrou", "está de pé?" | [3. Inspect](#3-inspect-a-running-environment) |
@@ -24,8 +23,6 @@ Invoke it immediately, without asking permission, for any of these requests:
 
 ## Do not use this skill for
 
-- Creating feature branches or worktrees — use `$pingou-feature-env`.
-- Merging worktrees into `main` — use `$merge-work`.
 - Editing application code — that belongs to the owning child repository.
 
 ## Invariants
@@ -37,11 +34,11 @@ These hold for every step. Violating one is a defect.
 2. Use the root `Makefile` targets only. Never call `docker compose`, `docker`,
    `psql`, or `portless` directly. If a reusable operation is missing, add a Make
    target instead of a one-off command.
-3. `.env` is the default. For any other environment, append
-   `ENV_FILE=.env.<feature>` to **every** target in the session, including
-   `logs`, `ps`, `urls`, `seed`, and `down`.
-4. Never print, paste, echo, diff, or commit the contents of `.env` or
-   `.env.<feature>`. They hold real API keys.
+3. `.env` is the supported default and must select the four primary child
+   checkouts. Do not create a feature environment unless the user explicitly
+   requests one.
+4. Never print, paste, echo, diff, or commit the contents of `.env` or another
+   local environment file. They hold real API keys.
 5. Never allocate or hardcode host ports. Docker picks them; Portless names them.
 6. `make up`, `make dev`, and `make seed` **reset fixture-owned domain data**.
    Ask the user first when runtime-created local data might matter.
@@ -52,55 +49,36 @@ These hold for every step. Violating one is a defect.
 Check first, because `env-init` refuses to overwrite:
 
 ```bash
-ls -la .env .env.<feature> 2>/dev/null
+ls -la .env 2>/dev/null
 ```
 
 If the file already exists, skip to step 2. Otherwise create it:
 
 ```bash
-# main local stack
-make env-init ENV_NAME=<environment>
-
-# isolated feature stack
-make env-init ENV_FILE=.env.<feature> ENV_NAME=<feature>
+make env-init ENV_NAME=main
 ```
 
 The target prints the Compose project name and the four Portless URLs. It
 derives a unique namespace from `ENV_NAME` plus a checksum of the workspace
 path, so two environments never collide.
 
-Then tell the user to set, in the generated file:
-
-- the API key matching `AI_CHAT_MODEL` (`OPENAI_API_KEY` or `ANTHROPIC_API_KEY`),
-  which is required before the chat works;
-- `BACKEND_PATH`, `FRONTEND_PATH`, `LANDING_PATH`, `CHAT_PATH`, only when the
-  environment must build from worktrees instead of the main submodule checkouts.
+Then tell the user to set, in the generated file, the API key matching
+`AI_CHAT_MODEL` (`OPENAI_API_KEY` or `ANTHROPIC_API_KEY`), which is required
+before the chat works. The four `*_PATH` values already select the primary child
+checkouts; do not redirect them to alternate checkouts.
 
 Change nothing else in the generated file.
-
-## List worktree environments
-
-List every root environment, the app worktrees it selects, and the exact start
-command for it:
-
-```bash
-make list-worktrees
-```
-
-The target also reports linked Git worktrees that have no root environment. It
-may read the four `*_PATH` selectors to match an environment to a worktree, but
-must never print other values or raw environment-file contents.
 
 ## 2. Start the stack
 
 ```bash
 make doctor
-make up ENV_FILE=<selected-env>
-make urls ENV_FILE=<selected-env>
+make up
+make urls
 ```
 
-Use `make config ENV_FILE=<selected-env>` first when the environment file was
-edited by hand and the rendered Compose output needs review.
+Use `make config` first when the environment file was edited by hand and the
+rendered Compose output needs review.
 
 `make up` builds the four application images, starts PostgreSQL, Redis, Django,
 the Celery worker, the Go relay, the frontend, and the landing page, waits for
@@ -116,7 +94,7 @@ Failure handling:
 
 - `make doctor` fails → Docker or Portless is unavailable. Report it and stop.
 - A service never becomes healthy → run
-  `make logs ENV_FILE=<selected-env> SERVICE=<service>`, report the real error,
+  `make logs SERVICE=<service>`, report the real error,
   and do not retry blindly.
 - Public URLs look stale in the browser → Next.js reads them at process start,
   so run `make up` again after any environment-file change.
@@ -124,10 +102,10 @@ Failure handling:
 ## 3. Inspect a running environment
 
 ```bash
-make ps ENV_FILE=<selected-env>
-make urls ENV_FILE=<selected-env>
-make logs ENV_FILE=<selected-env> SERVICE=<service>
-make restart ENV_FILE=<selected-env> SERVICE=<service>
+make ps
+make urls
+make logs SERVICE=<service>
+make restart SERVICE=<service>
 ```
 
 Service names are `api`, `celery-worker`, `chat`, `frontend`, `landing`, `db`,
@@ -140,11 +118,11 @@ which also registers its own Portless alias).
 ## 4. Operate backend data
 
 ```bash
-make seed ENV_FILE=<selected-env>
-make migrate ENV_FILE=<selected-env>
-make manage ENV_FILE=<selected-env> ARGS="<django-command>"
-make db-shell ENV_FILE=<selected-env>
-make redis-cli ENV_FILE=<selected-env>
+make seed
+make migrate
+make manage ARGS="<django-command>"
+make db-shell
+make redis-cli
 ```
 
 All local domain data comes from
@@ -156,8 +134,8 @@ insert rows through `db-shell`, a migration, or an ad hoc script.
 
 When the traceback comes from the backend `.venv` and the root Compose stack
 is stopped, use the root targets below. They use the backend's own `.env`,
-not the root Compose `ENV_FILE`. `LOCAL_BACKEND_PATH` defaults to the backend
-submodule and may select an explicitly requested checkout.
+not the root Compose `ENV_FILE`. `LOCAL_BACKEND_PATH` defaults to the primary
+backend checkout.
 
 ```bash
 make local-manage ARGS="showmigrations"
@@ -174,9 +152,9 @@ a shared or production database.
 ## 5. Stop or delete
 
 ```bash
-make stop ENV_FILE=<selected-env>     # pause containers, keep everything
-make down ENV_FILE=<selected-env>     # remove containers + aliases, keep volumes
-make destroy ENV_FILE=<selected-env>  # also delete volumes and local images
+make stop     # pause containers, keep everything
+make down     # remove containers + aliases, keep volumes
+make destroy  # also delete volumes and local images
 ```
 
 Default to `make down`. Use `make destroy` only after the user explicitly agrees

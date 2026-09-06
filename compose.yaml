@@ -196,7 +196,6 @@ services:
           path: "${CHAT_PATH:-./pingou-o-que-chat}"
           ignore:
             - .git/
-            - .worktrees/
             - pingou-o-que-chat
 
   frontend:

@@ -18,13 +18,10 @@ COMPOSE = docker compose --env-file "$(ENV_FILE)" --file compose.yaml
 
 .NOTPARALLEL: build up
 
-.PHONY: env-init list-worktrees config build build-backend build-chat build-frontend build-landing up dev watch stop down destroy ps logs restart portless-up portless-down urls doctor migrate seed manage shell db-shell redis-cli scheduler flower
+.PHONY: env-init config build build-backend build-chat build-frontend build-landing up dev watch stop down destroy ps logs restart portless-up portless-down urls doctor migrate seed manage shell db-shell redis-cli scheduler flower
 
 env-init:
 	@$(PYTHON) -m tools.dev.init_env --env-file "$(ENV_FILE)" $(if $(ENV_NAME),--env-name "$(ENV_NAME)",)
-
-list-worktrees:
-	@$(PYTHON) -m tools.dev.list_worktrees
 
 config:
 	@$(COMPOSE) config
