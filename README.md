@@ -87,6 +87,7 @@ make dev                         # start everything, register aliases, then watc
 make logs SERVICE=celery-worker  # follow one service
 make ps                          # inspect this environment only
 make urls                        # print stable Portless URLs
+make list-worktrees              # list worktree environments and start commands
 make doctor                      # check Docker and Portless
 make seed                        # reset this environment from the backend fixture
 make manage ARGS="createsuperuser"
@@ -105,6 +106,9 @@ they also serialize the two Bun image builds and keep Portless aliases
 synchronized.
 
 ## One isolated stack per worktree
+
+Run `make list-worktrees` to see every configured environment, its selected app
+branches, and the exact `make up ENV_FILE=...` command that starts it.
 
 Isolation has three parts:
 

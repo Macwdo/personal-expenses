@@ -32,6 +32,7 @@ x-backend-common: &backend-common
   build:
     context: "${BACKEND_PATH:-./pingou-o-que-backend}"
     dockerfile: Dockerfile
+    network: host
   working_dir: /workspace
   environment: *backend-environment
   volumes:
@@ -165,6 +166,7 @@ services:
     build:
       context: "${CHAT_PATH:-./pingou-o-que-chat}"
       dockerfile: Dockerfile
+      network: host
     environment:
       PORT: "8080"
       REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
@@ -203,6 +205,7 @@ services:
     build:
       context: "${FRONTEND_PATH:-./pingou-o-que-frontend}"
       dockerfile: Dockerfile
+      network: host
     init: true
     working_dir: /opt/app/workspace
     environment:
@@ -238,6 +241,7 @@ services:
     build:
       context: "${LANDING_PATH:-./pingou-o-que-landing-page}"
       dockerfile: Dockerfile
+      network: host
     init: true
     working_dir: /opt/app/workspace
     environment:

@@ -4,15 +4,27 @@ WAIT_TIMEOUT ?= 300
 SERVICE ?=
 ARGS ?=
 PYTHON ?= python3
+LOCAL_BACKEND_PATH ?= $(CURDIR)/pingou-o-que-backend
+
+.PHONY: local-manage local-reset-db
+
+local-manage:
+	uv run --directory "$(LOCAL_BACKEND_PATH)" python manage.py $(ARGS)
+
+local-reset-db:
+	uv run --directory "$(LOCAL_BACKEND_PATH)" python "$(CURDIR)/tools/dev/reset_local_database.py" $(if $(filter 1,$(CONFIRM_RESET)),--confirm,)
 
 COMPOSE = docker compose --env-file "$(ENV_FILE)" --file compose.yaml
 
 .NOTPARALLEL: build up
 
-.PHONY: env-init config build build-backend build-chat build-frontend build-landing up dev watch stop down destroy ps logs restart portless-up portless-down urls doctor migrate seed manage shell db-shell redis-cli scheduler flower
+.PHONY: env-init list-worktrees config build build-backend build-chat build-frontend build-landing up dev watch stop down destroy ps logs restart portless-up portless-down urls doctor migrate seed manage shell db-shell redis-cli scheduler flower
 
 env-init:
 	@$(PYTHON) -m tools.dev.init_env --env-file "$(ENV_FILE)" $(if $(ENV_NAME),--env-name "$(ENV_NAME)",)
+
+list-worktrees:
+	@$(PYTHON) -m tools.dev.list_worktrees
 
 config:
 	@$(COMPOSE) config
@@ -73,7 +85,7 @@ urls:
 
 doctor:
 	@docker info >/dev/null
-	@portless doctor
+	@portless list >/dev/null
 
 migrate: build-backend
 	$(COMPOSE) run --rm -e DJANGO_MIGRATE=0 api python manage.py migrate --no-input

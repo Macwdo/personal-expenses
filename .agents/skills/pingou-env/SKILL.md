@@ -1,6 +1,6 @@
 ---
 name: pingou-env
-description: Runs every Pingou workspace runtime operation through the root Makefile - creating a .env or .env.<feature> file, building and starting the stack, printing Portless URLs, following logs, seeding fixture data, running Django management commands, opening psql or redis-cli, and stopping or destroying an environment. Use whenever the user asks to create an env, subir/derrubar o projeto, rodar o stack, ver URLs ou logs, resetar dados locais, or operate any environment in /home/macwdo/Codes/pingou-o-que.
+description: Runs every Pingou workspace runtime operation through the root Makefile - creating a .env or .env.<feature> file, listing configured worktree environments, building and starting the stack, printing Portless URLs, following logs, seeding fixture data, running Django management commands, opening psql or redis-cli, and stopping or destroying an environment. Use whenever the user asks to create an env, list worktree environments, subir/derrubar o projeto, rodar o stack, ver URLs ou logs, resetar dados locais, or operate any environment in /home/macwdo/Codes/pingou-o-que.
 ---
 
 # Pingou Environment
@@ -15,6 +15,7 @@ Invoke it immediately, without asking permission, for any of these requests:
 | Request | Entry point below |
 | --- | --- |
 | "cria um env", "create the environment", `.env` is missing | [1. Create](#1-create-the-environment-file) |
+| "lista as worktrees", "como rodo a feature" | [List worktree environments](#list-worktree-environments) |
 | "sobe o projeto", "start everything", "run the stack" | [2. Start](#2-start-the-stack) |
 | "qual a URL", "abre o front", "cadê o backend" | [3. Inspect](#3-inspect-a-running-environment) |
 | "vê os logs", "o Celery quebrou", "está de pé?" | [3. Inspect](#3-inspect-a-running-environment) |
@@ -77,6 +78,19 @@ Then tell the user to set, in the generated file:
 
 Change nothing else in the generated file.
 
+## List worktree environments
+
+List every root environment, the app worktrees it selects, and the exact start
+command for it:
+
+```bash
+make list-worktrees
+```
+
+The target also reports linked Git worktrees that have no root environment. It
+may read the four `*_PATH` selectors to match an environment to a worktree, but
+must never print other values or raw environment-file contents.
+
 ## 2. Start the stack
 
 ```bash
@@ -137,6 +151,25 @@ All local domain data comes from
 `pingou-o-que-backend/apps/api/fixtures/financial_seed.json`. To change seeded
 data, edit that fixture in the backend repository and re-run `make seed` — never
 insert rows through `db-shell`, a migration, or an ad hoc script.
+
+### Backend running locally in its virtual environment
+
+When the traceback comes from the backend `.venv` and the root Compose stack
+is stopped, use the root targets below. They use the backend's own `.env`,
+not the root Compose `ENV_FILE`. `LOCAL_BACKEND_PATH` defaults to the backend
+submodule and may select an explicitly requested checkout.
+
+```bash
+make local-manage ARGS="showmigrations"
+make local-reset-db CONFIRM_RESET=1
+```
+
+`local-reset-db` is destructive: obtain user authorization first. It requires
+DEBUG and a loopback PostgreSQL host, clears the configured database's public
+schema, regenerates app migrations from current models, applies migrations,
+and loads `financial_seed.json`. This follows the backend's disposable database
+policy. Validate the seed tests and affected API after reset. Never use it on
+a shared or production database.
 
 ## 5. Stop or delete
 
