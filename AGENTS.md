@@ -132,6 +132,14 @@ The Go service uses standard `gofmt`/`go vet`; keep the Redis key layout in
 
 In Next.js apps, use TypeScript, ESLint, Prettier, Tailwind, and shadcn/ui patterns. Component names are PascalCase; route and component files commonly use kebab-case. The frontend runs Next 16.2 / React 19.2 with breaking changes from older Next.js conventions — check `node_modules/next/dist/docs/` before assuming familiar APIs. Frontend HTTP calls must go through `lib/api/*` (`requestApi`/`requestApiVoid` plus Zod schemas), never directly from components; the backend base URL comes from `NEXT_PUBLIC_EXPENSE_API_URL` (local default `http://127.0.0.1:8001`) and the chat service URL from `NEXT_PUBLIC_CHAT_API_URL`. Neither app exposes or consumes `/table` endpoints — data-grid screens use the standard list routes with pagination/filtering/`ordering`.
 
+Simple frontend list screens and their loading states must use
+`ListPageShell`. The shell owns a fixed height equal to the viewport remaining
+below the application header. Infinite-list screens use `scrollMode="list"` so
+the page-level overflow stays hidden and `InfiniteList.Viewport` is the only
+vertical scroll container; its scrollbar stays visually hidden. Do not
+duplicate the shell's `<main>` spacing or replace its fixed height with
+content-driven `min-height` in individual routes.
+
 ## AI Tool & Domain-App Boundaries
 
 The backend `apps/ai` app owns chat orchestration (LangGraph/DeepAgents: a

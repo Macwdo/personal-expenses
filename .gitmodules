@@ -10,3 +10,6 @@
 [submodule "pingou-o-que-chat"]
 	path = pingou-o-que-chat
 	url = git@github.com-personal:Macwdo/pingou-o-que-chat.git
+[submodule "pingou-o-que-infra"]
+	path = pingou-o-que-infra
+	url = https://github.com/Macwdo/pingou-o-que-infra.git
