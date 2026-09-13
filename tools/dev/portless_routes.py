@@ -24,7 +24,6 @@ ROUTES = {
         Route("landing", 3000),
         Route("api", 8000),
         Route("chat", 8080),
-        Route("flower", 5555),
     )
 }
 DEFAULT_SERVICES = ("frontend", "landing", "api", "chat")

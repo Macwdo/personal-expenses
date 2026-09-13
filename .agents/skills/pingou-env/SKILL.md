@@ -1,6 +1,6 @@
 ---
 name: pingou-env
-description: Runs every Pingou workspace runtime operation through the root Makefile - creating the local .env, building and starting the primary-checkout stack, printing Portless URLs, following logs, seeding fixture data, running Django management commands, opening psql or redis-cli, and stopping or destroying the environment. Use whenever the user asks to create the env, subir/derrubar o projeto, rodar o stack, ver URLs ou logs, resetar dados locais, or operate the environment in /home/macwdo/Codes/pingou-o-que.
+description: Runs every Pingou workspace runtime operation through the root Makefile - creating the local .env, building and starting the primary-checkout stack, printing Portless URLs, following logs, seeding fixture data, running Django management commands, opening psql, and stopping or destroying the environment. Use whenever the user asks to create the env, subir/derrubar o projeto, rodar o stack, ver URLs ou logs, resetar dados locais, or operate the environment in /home/macwdo/Codes/pingou-o-que.
 ---
 
 # Pingou Environment
@@ -80,8 +80,8 @@ make urls
 Use `make config` first when the environment file was edited by hand and the
 rendered Compose output needs review.
 
-`make up` builds the four application images, starts PostgreSQL, Redis, Django,
-the Celery worker, the Go relay, the frontend, and the landing page, waits for
+`make up` builds the four application images, starts PostgreSQL, Django,
+the Celery worker and Beat, the Go relay, the frontend, and the landing page, waits for
 health checks, loads the backend fixture, and registers Portless aliases. It is
 slow on a cold build; allow several minutes rather than interrupting it.
 
@@ -102,18 +102,28 @@ Failure handling:
 ## 3. Inspect a running environment
 
 ```bash
+make validate-compose  # validate configuration without printing secret values
 make ps
 make urls
 make logs SERVICE=<service>
 make restart SERVICE=<service>
+make refresh-celery  # rebuild/recreate API, worker, Beat and chat without seeding
+make celery-e2e      # exercise HTTP -> Celery -> PostgreSQL -> HTTP
 ```
 
-Service names are `api`, `celery-worker`, `chat`, `frontend`, `landing`, `db`,
-and `redis`. `make logs` follows output, so run it in the background or bound it
+Service names are `api`, `celery-worker`, `celery-beat`, `chat`, `frontend`, `landing`, and `db`. `make logs` follows output, so run it in the background or bound it
 when a single snapshot is enough.
 
-Optional profiles: `make scheduler` (Celery Beat) and `make flower` (Flower,
-which also registers its own Portless alias).
+Beat starts with the default stack. `make scheduler` starts it independently when needed.
+
+`make refresh-celery` preserves the database volume and does not reload fixture
+data. It rebuilds and recreates only the backend and chat processes. Follow it
+with `make celery-e2e` to call the administrator-only probe endpoint. Export an
+existing active staff user's access token as `CELERY_PROBE_TOKEN`; the command
+passes it to the API container without printing it. It dispatches
+`celery_probe_task.delay(some_param=1)`, polls the result endpoint, and succeeds
+only when PostgreSQL broker/result flow completes. Both routes require staff
+access even in DEBUG. Never promote the fixture dev-token user for this check.
 
 ## 4. Operate backend data
 
@@ -122,7 +132,6 @@ make seed
 make migrate
 make manage ARGS="<django-command>"
 make db-shell
-make redis-cli
 ```
 
 All local domain data comes from

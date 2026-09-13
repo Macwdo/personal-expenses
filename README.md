@@ -76,7 +76,7 @@ http://chat.pingou-<environment>-<checksum>.localhost:1355
 ```
 
 PostgreSQL and Redis remain reachable only on the project-scoped Docker
-network; use `make db-shell` or `make redis-cli` for direct access. The
+network; use `make db-shell`  for direct access. The
 generated `.env` is ignored by Git, and `make env-init` refuses to overwrite an
 existing one.
 
@@ -91,9 +91,7 @@ make doctor                      # check Docker and Portless
 make seed                        # reset this environment from the backend fixture
 make manage ARGS="createsuperuser"
 make db-shell                    # psql inside this environment
-make redis-cli                   # redis-cli inside this environment
 make scheduler                   # optional Celery Beat profile
-make flower                      # optional Flower profile
 make down                        # remove containers/aliases, preserve named volumes
 make destroy                     # delete this environment's containers, volumes, and images
 ```
@@ -142,3 +140,5 @@ business flow; relationship-generated rows may exceed that when needed, while
 fixed infrastructure identities may remain singletons. Do not introduce
 bootstrap data through migrations, startup hooks, service defaults, or ad hoc
 scripts.
+
+Celery broker/results, Beat schedules and chat events use PostgreSQL. Beat starts with the default stack.

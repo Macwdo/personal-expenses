@@ -18,7 +18,7 @@ COMPOSE = docker compose --env-file "$(ENV_FILE)" --file compose.yaml
 
 .NOTPARALLEL: build up
 
-.PHONY: env-init config build build-backend build-chat build-frontend build-landing up dev watch stop down destroy ps logs restart portless-up portless-down urls doctor migrate seed manage shell db-shell redis-cli scheduler flower
+.PHONY: env-init config build build-backend build-chat build-frontend build-landing up dev watch stop down destroy ps logs restart portless-up portless-down urls doctor migrate seed manage shell db-shell scheduler refresh-celery celery-e2e test-celery
 
 env-init:
 	@$(PYTHON) -m tools.dev.init_env --env-file "$(ENV_FILE)" $(if $(ENV_NAME),--env-name "$(ENV_NAME)",)
@@ -86,6 +86,7 @@ doctor:
 
 migrate: build-backend
 	$(COMPOSE) run --rm -e DJANGO_MIGRATE=0 api python manage.py migrate --no-input
+	$(COMPOSE) run --rm -e DJANGO_MIGRATE=0 api python manage.py setup_celery_database
 
 seed: build-backend
 	$(COMPOSE) run --rm api python scripts/seed.py
@@ -99,12 +100,18 @@ shell:
 db-shell:
 	$(COMPOSE) exec db sh -c 'psql -U "$$POSTGRES_USER" "$$POSTGRES_DB"'
 
-redis-cli:
-	$(COMPOSE) exec redis redis-cli
-
 scheduler: build-backend
-	$(COMPOSE) --profile scheduler up --detach --wait celery-beat
+	$(COMPOSE) up --detach --wait celery-beat
 
-flower: build-backend
-	$(COMPOSE) --profile observability up --detach --wait flower
-	@$(PYTHON) -m tools.dev.portless_routes add --env-file "$(ENV_FILE)" --services flower
+refresh-celery: build-backend build-chat
+	$(COMPOSE) up --detach --wait --force-recreate api celery-worker celery-beat chat
+
+celery-e2e:
+	$(COMPOSE) exec -T -e CELERY_PROBE_TOKEN api python scripts/check_celery_e2e.py
+
+test-celery:
+	uv run --directory "$(LOCAL_BACKEND_PATH)" pytest apps/api/tests/test_celery_probe_api.py apps/core/tests/test_postgres_celery.py
+
+.PHONY: validate-compose
+validate-compose:
+	@$(COMPOSE) config --quiet

@@ -44,28 +44,26 @@ utilities in `lib/`, Zustand stores in `stores/`, and static assets in
   marketing copy, visual sections, the CRM lead form, and shadcn-style UI.
 - `pingou-o-que-chat`: stateless Go service that relays chat events to browsers.
   It proxies chat-start to Django, verifies tokens against Django, and streams a
-  thread's Redis Stream to the client as Server-Sent Events.
+  thread's PostgreSQL event log to the client as Server-Sent Events.
 
 ## Runtime Architecture
 
-The product is a single-user personal finance app. The four services cooperate
-at runtime:
+The frontend sends chat-start/approval requests to the stateless Go relay.
+Django owns validation, authentication, session ownership, business rules and
+dispatch. Celery uses PostgreSQL through Kombu SQLAlchemy as broker and its
+SQLAlchemy database result backend. One Celery Beat uses django-celery-beat
+DatabaseScheduler in PostgreSQL and also performs queue/result/event cleanup.
 
-1. Browser (frontend) sends a chat message to the **Go chat service**
-   (`POST /chat`), which proxies it to Django's internal chat-start endpoint.
-2. **Django** validates the request, records the session, and enqueues a
-   **Celery** task. The task runs the LangGraph/DeepAgents finance agent
-   (`apps/ai`) and publishes streaming events (`token`/`agent`/`complete`/
-   `error`) to a per-thread **Redis Stream** (`chat:stream:<thread_id>`), with
-   thread ownership stored at `chat:owner:<thread_id>`.
-3. The browser opens `GET /chat/{thread_id}/events` on the **Go service**, which
-   verifies the bearer token via Django (`/internal/auth/verify`), checks Redis
-   thread ownership, and relays the Redis Stream to the browser as SSE.
+Tasks append ordered PostgreSQL chat event rows. Go forwards the bearer token
+to Django's bounded event endpoint and polls for SSE delivery, supporting numeric
+Last-Event-ID cursors. PostgreSQL also owns domain data and LangGraph history.
+No Redis, SQS or Supabase Realtime is required.
 
-Redis is the broker/result backend for Celery **and** the chat event bus.
-PostgreSQL is the only persistent datastore (including the LangGraph
-checkpointer that holds conversation history). There is no real auth yet: the
-only token path is a `DEBUG`-only dev-token endpoint.
+Production uses Supabase PostgreSQL, Auth and private S3 Storage; Railway
+Django/Celery/Beat/Go compute; Vercel frontend/landing. Supabase Auth integration
+is still pending; current authentication retains the DEBUG dev-token path.
+Keep production readiness false until Auth and single-user access checks pass.
+Backend AGENTS.md documents SQL broker delivery limitations.
 
 ## Branch And Ownership
 
@@ -127,8 +125,7 @@ per-repository commands below are for validation and single-service work:
 
 Backend Python targets 3.13 and uses Ruff: space indentation, double quotes, and a 131-character line length. Keep Django boundaries clear: selectors handle reads, services handle writes/business rules, serializers handle validation and representation, and views stay thin. Use snake_case for Python modules/functions.
 
-The Go service uses standard `gofmt`/`go vet`; keep the Redis key layout in
-`internal/redisstream` mirrored with Django's `apps/chat/redis.py`.
+The Go service uses standard `gofmt`/`go vet`; keep the event-page contract in `internal/dbstream` aligned with Django's chat events endpoint.
 
 In Next.js apps, use TypeScript, ESLint, Prettier, Tailwind, and shadcn/ui patterns. Component names are PascalCase; route and component files commonly use kebab-case. The frontend runs Next 16.2 / React 19.2 with breaking changes from older Next.js conventions — check `node_modules/next/dist/docs/` before assuming familiar APIs. Frontend HTTP calls must go through `lib/api/*` (`requestApi`/`requestApiVoid` plus Zod schemas), never directly from components; the backend base URL comes from `NEXT_PUBLIC_EXPENSE_API_URL` (local default `http://127.0.0.1:8001`) and the chat service URL from `NEXT_PUBLIC_CHAT_API_URL`. Neither app exposes or consumes `/table` endpoints — data-grid screens use the standard list routes with pagination/filtering/`ordering`.
 
@@ -187,4 +184,4 @@ Root history mainly uses concise imperative commits such as `chore: update app s
 
 ## Security & Configuration Tips
 
-Do not commit secrets or local `.env*` files. Backend runtime settings use `.env`; Docker Compose may use `.env.development`. Redis (`REDIS_URL`) is required for Celery and chat streaming. Keep submodule pointer updates intentional and mention them in PRs.
+Do not commit secrets or local `.env*` files. Backend runtime settings use `.env`; Docker Compose may use `.env.development`. PostgreSQL supplies Celery broker/results and chat streaming. Keep submodule pointer updates intentional and mention them in PRs.

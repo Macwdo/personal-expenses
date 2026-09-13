@@ -1,4 +1,6 @@
 .codex/
+.idea/
+.air/settings.json
 .env
 .env.*
 !.env.example
