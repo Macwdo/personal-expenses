@@ -58,6 +58,11 @@ services:
       POSTGRES_DB: "${POSTGRES_DB:?set POSTGRES_DB in the selected env file}"
       POSTGRES_USER: "${POSTGRES_USER:?set POSTGRES_USER in the selected env file}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in the selected env file}"
+    ports:
+      - target: 5432
+        published: "${POSTGRES_HOST_PORT:-5467}"
+        host_ip: "${BIND_HOST:-127.0.0.1}"
+        protocol: tcp
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -76,7 +81,7 @@ services:
     depends_on: *infrastructure-ready
     ports:
       - target: 8000
-        published: "0"
+        published: "${BACKEND_PORT:-8067}"
         host_ip: "${BIND_HOST:-127.0.0.1}"
         protocol: tcp
     healthcheck:
@@ -123,19 +128,25 @@ services:
     build:
       context: "${CHAT_PATH:-./pingou-o-que-chat}"
       dockerfile: Dockerfile
+      target: dev
       network: host
+    working_dir: /src
     environment:
       PORT: "8080"
       DJANGO_INTERNAL_URL: "http://api:8000"
       CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:?set CORS_ALLOWED_ORIGINS in the selected env file}"
       LOG_FORMAT: "${CHAT_LOG_FORMAT:-console}"
       LOG_LEVEL: "${CHAT_LOG_LEVEL:-info}"
+    volumes:
+      - type: bind
+        source: "${CHAT_PATH:-./pingou-o-que-chat}"
+        target: /src
     depends_on:
       api:
         condition: service_healthy
     ports:
       - target: 8080
-        published: "0"
+        published: "${CHAT_PORT:-8167}"
         host_ip: "${BIND_HOST:-127.0.0.1}"
         protocol: tcp
     healthcheck:
@@ -144,13 +155,6 @@ services:
       timeout: 3s
       retries: 20
       start_period: 5s
-    develop:
-      watch:
-        - action: rebuild
-          path: "${CHAT_PATH:-./pingou-o-que-chat}"
-          ignore:
-            - .git/
-            - pingou-o-que-chat
 
   frontend:
     image: "${COMPOSE_PROJECT_NAME}-frontend-dev"
@@ -177,7 +181,7 @@ services:
         condition: service_healthy
     ports:
       - target: 3000
-        published: "0"
+        published: "${FRONTEND_PORT:-9067}"
         host_ip: "${BIND_HOST:-127.0.0.1}"
         protocol: tcp
     volumes:
@@ -209,7 +213,7 @@ services:
         condition: service_healthy
     ports:
       - target: 3000
-        published: "0"
+        published: "${LANDING_PORT:-9167}"
         host_ip: "${BIND_HOST:-127.0.0.1}"
         protocol: tcp
     volumes:

@@ -80,12 +80,11 @@ durable rules are:
 - Work on `main` in the parent, backend, frontend, and landing repositories.
   The chat repository currently uses `master` as its upstream primary branch;
   use it directly until that upstream branch is intentionally renamed.
-- Do not create feature branches or Git worktrees unless the user explicitly
-  changes this temporary working preference.
+- Do not create feature branches or Git worktrees. Work sequentially in the
+  primary checkout, one change at a time, unless the user explicitly asks for
+  parallel work.
 - Do not create OpenSpec artifacts or repository spec trees. Keep durable rules
   in `AGENTS.md` and procedures in `.agents/skills/`.
-- If parallel workers are explicitly requested, give them disjoint file
-  ownership and coordinate their edits in the primary checkout.
 - Validate and commit in each owning child repository before intentionally
   updating its parent submodule pointer.
 
@@ -100,26 +99,22 @@ Follow `$pingou-env` for the commands. The durable rules are:
   requested.
 - Never print, overwrite, or commit `.env` or any other local environment file.
   The key required by `AI_CHAT_MODEL` must be set locally before chat works.
-- Never allocate fixed host ports. Docker assigns them and Portless publishes
-  the stable URLs reported by `make urls`.
+- Root services publish fixed default host ports: Postgres `5467`, backend
+  `8067`, chat `8167`, frontend `9067`, landing `9167` (`POSTGRES_HOST_PORT`,
+  `BACKEND_PORT`, `CHAT_PORT`, `FRONTEND_PORT`, `LANDING_PORT` in `.env`).
+  Only one environment can bind a given port at a time — override these per
+  `.env.<name>` file when running more than one stack concurrently. Portless
+  still publishes the stable hostnames reported by `make urls`.
 - `make up`, `make dev`, and `make seed` reset fixture-owned domain data;
   `make destroy` also deletes volumes and images. Confirm with the user before
   running them when local state matters.
 
 ## Build, Test, and Development Commands
 
-For the integrated stack, use `$pingou-env` from the workspace root. The
-per-repository commands below are for validation and single-service work:
-
-- `cd pingou-o-que-backend && make up`: start PostgreSQL, run migrations, and serve Django on `8001`.
-- `cd pingou-o-que-backend && make celery-worker`: run the Celery worker (needed for chat replies).
-- `cd pingou-o-que-backend && uv run pytest`: run backend tests.
-- `cd pingou-o-que-backend && uv run ruff check . && uv run ruff format .`: lint and format Python.
-- `cd pingou-o-que-chat && go run .`: start the Go chat SSE relay on `8080`.
-- `cd pingou-o-que-chat && go build ./... && go test ./...`: build and test the Go service.
-- `cd pingou-o-que-frontend && bun run dev`: run the product UI locally.
-- `cd pingou-o-que-landing-page && bun run dev`: run the marketing site locally.
-- `bun run build`, `bun run lint`, and `bun run typecheck`: validate either Next.js app from its directory.
+Use `$pingou-env` from the workspace root for everything: it runs the full
+stack through `make up` in Docker. Commands for running a single repository in
+isolation, outside Docker, are documented in the root `README.md` for manual,
+human-driven use — not part of the standard agent workflow.
 
 ## Coding Style & Naming Conventions
 
@@ -127,7 +122,7 @@ Backend Python targets 3.13 and uses Ruff: space indentation, double quotes, and
 
 The Go service uses standard `gofmt`/`go vet`; keep the event-page contract in `internal/dbstream` aligned with Django's chat events endpoint.
 
-In Next.js apps, use TypeScript, ESLint, Prettier, Tailwind, and shadcn/ui patterns. Component names are PascalCase; route and component files commonly use kebab-case. The frontend runs Next 16.2 / React 19.2 with breaking changes from older Next.js conventions — check `node_modules/next/dist/docs/` before assuming familiar APIs. Frontend HTTP calls must go through `lib/api/*` (`requestApi`/`requestApiVoid` plus Zod schemas), never directly from components; the backend base URL comes from `NEXT_PUBLIC_EXPENSE_API_URL` (local default `http://127.0.0.1:8001`) and the chat service URL from `NEXT_PUBLIC_CHAT_API_URL`. Neither app exposes or consumes `/table` endpoints — data-grid screens use the standard list routes with pagination/filtering/`ordering`.
+In Next.js apps, use TypeScript, ESLint, Prettier, Tailwind, and shadcn/ui patterns. Component names are PascalCase; route and component files commonly use kebab-case. The frontend runs Next 16.2 / React 19.2 with breaking changes from older Next.js conventions — check `node_modules/next/dist/docs/` before assuming familiar APIs. Frontend HTTP calls must go through `lib/api/*` (`requestApi`/`requestApiVoid` plus Zod schemas), never directly from components; the backend base URL comes from `NEXT_PUBLIC_EXPENSE_API_URL` (local default `http://127.0.0.1:8067`) and the chat service URL from `NEXT_PUBLIC_CHAT_API_URL`. Neither app exposes or consumes `/table` endpoints — data-grid screens use the standard list routes with pagination/filtering/`ordering`.
 
 Simple frontend list screens and their loading states must use
 `ListPageShell`. The shell owns a fixed height equal to the viewport remaining

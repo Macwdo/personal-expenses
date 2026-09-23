@@ -75,8 +75,12 @@ http://api.pingou-<environment>-<checksum>.localhost:1355
 http://chat.pingou-<environment>-<checksum>.localhost:1355
 ```
 
-PostgreSQL and Redis remain reachable only on the project-scoped Docker
-network; use `make db-shell`  for direct access. The
+Each service also publishes a fixed host port, in case you'd rather hit it
+directly than through Portless: Postgres `5467`, backend `8067`, chat `8167`,
+frontend `9067`, landing `9167`. Override `POSTGRES_HOST_PORT`, `BACKEND_PORT`,
+`CHAT_PORT`, `FRONTEND_PORT`, `LANDING_PORT` in `.env` if you need to run more
+than one environment's containers at once, since only one environment can bind
+a given port at a time. Use `make db-shell` for a quick Postgres shell. The
 generated `.env` is ignored by Git, and `make env-init` refuses to overwrite an
 existing one.
 
@@ -102,6 +106,22 @@ and locally built images. Use the Make targets as the supported interface:
 they also serialize the two Bun image builds and keep Portless aliases
 synchronized.
 
+## Running a single service in isolation
+
+The commands below run one repository outside Docker, for manual debugging.
+They are not part of the standard workflow — use `make up` for everything
+else:
+
+- `cd pingou-o-que-backend && make up`: start PostgreSQL, run migrations, and serve Django on `8067`.
+- `cd pingou-o-que-backend && make celery-worker`: run the Celery worker (needed for chat replies).
+- `cd pingou-o-que-backend && uv run pytest`: run backend tests.
+- `cd pingou-o-que-backend && uv run ruff check . && uv run ruff format .`: lint and format Python.
+- `cd pingou-o-que-chat && go run .`: start the Go chat SSE relay on `8167`.
+- `cd pingou-o-que-chat && go build ./... && go test ./...`: build and test the Go service.
+- `cd pingou-o-que-frontend && bun run dev`: run the product UI locally on `9067`.
+- `cd pingou-o-que-landing-page && bun run dev`: run the marketing site locally on `9167`.
+- `bun run build`, `bun run lint`, and `bun run typecheck`: validate either Next.js app from its directory.
+
 ## Working model
 
 Use the parent repository for cross-repository infrastructure, runtime
@@ -113,8 +133,7 @@ the workspace lifecycle.
 Work directly in the primary checkout and primary branch of every repository:
 `main` for the parent, backend, frontend, and landing repositories, and
 `master` for the chat repository while that remains its upstream primary
-branch. Do not create feature branches or Git worktrees unless this temporary
-preference is explicitly changed.
+branch. Do not create feature branches or Git worktrees.
 
 After cloning, initialize submodules:
 
@@ -122,9 +141,7 @@ After cloning, initialize submodules:
 git submodule update --init --recursive
 ```
 
-The root `.env` points Compose at these primary child checkouts. If parallel
-workers are explicitly requested, give them disjoint file ownership and
-coordinate their edits in the same primary checkout.
+The root `.env` points Compose at these primary child checkouts.
 
 ## Fixture-backed development data
 
