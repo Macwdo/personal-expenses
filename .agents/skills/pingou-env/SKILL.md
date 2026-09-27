@@ -80,7 +80,8 @@ make urls
 Use `make config` first when the environment file was edited by hand and the
 rendered Compose output needs review.
 
-`make up` builds the four application images, starts PostgreSQL, Django,
+`make up` builds the four application images, starts PostgreSQL, MinIO (and
+creates the private documents bucket through `minio-init`), Django,
 the Celery worker and Beat, the Go relay, the frontend, and the landing page, waits for
 health checks, loads the backend fixture, and registers Portless aliases. It is
 slow on a cold build; allow several minutes rather than interrupting it.
@@ -111,7 +112,7 @@ make refresh-celery  # rebuild/recreate API, worker, Beat and chat without seedi
 make celery-e2e      # exercise HTTP -> Celery -> PostgreSQL -> HTTP
 ```
 
-Service names are `api`, `celery-worker`, `celery-beat`, `chat`, `frontend`, `landing`, and `db`. `make logs` follows output, so run it in the background or bound it
+Service names are `api`, `celery-worker`, `celery-beat`, `chat`, `frontend`, `landing`, `db`, `minio`, and the one-shot `minio-init`. `make logs` follows output, so run it in the background or bound it
 when a single snapshot is enough.
 
 Beat starts with the default stack. `make scheduler` starts it independently when needed.

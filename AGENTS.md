@@ -59,6 +59,11 @@ to Django's bounded event endpoint and polls for SSE delivery, supporting numeri
 Last-Event-ID cursors. PostgreSQL also owns domain data and LangGraph history.
 No Redis, SQS or Supabase Realtime is required.
 
+Private documents use S3-compatible storage through boto3 presigned PUT/GET
+URLs. Locally the root stack runs MinIO (`minio` + one-shot `minio-init`, which
+creates the bucket); Django talks to it at `S3_ENDPOINT_URL` and signs browser
+URLs for `S3_PUBLIC_ENDPOINT_URL`, since a presigned URL is bound to its host.
+
 Production uses Supabase PostgreSQL, Auth and private S3 Storage; Railway
 Django/Celery/Beat/Go compute; Vercel frontend/landing. Supabase Auth integration
 is still pending; current authentication retains the DEBUG dev-token path.
@@ -100,8 +105,9 @@ Follow `$pingou-env` for the commands. The durable rules are:
 - Never print, overwrite, or commit `.env` or any other local environment file.
   The key required by `AI_CHAT_MODEL` must be set locally before chat works.
 - Root services publish fixed default host ports: Postgres `5467`, backend
-  `8067`, chat `8167`, frontend `9067`, landing `9167` (`POSTGRES_HOST_PORT`,
-  `BACKEND_PORT`, `CHAT_PORT`, `FRONTEND_PORT`, `LANDING_PORT` in `.env`).
+  `8067`, chat `8167`, frontend `9067`, landing `9167`, MinIO API `9267`,
+  MinIO console `9367` (`POSTGRES_HOST_PORT`, `BACKEND_PORT`, `CHAT_PORT`,
+  `FRONTEND_PORT`, `LANDING_PORT`, `MINIO_PORT`, `MINIO_CONSOLE_PORT` in `.env`).
   Only one environment can bind a given port at a time — override these per
   `.env.<name>` file when running more than one stack concurrently. Portless
   still publishes the stable hostnames reported by `make urls`.
@@ -140,11 +146,14 @@ The backend `apps/ai` app owns chat orchestration (LangGraph/DeepAgents: a
 exposes AI tools (`expenses`, `payments`, `transactions`, and any future one)
 must expose a clean, DTO-based boundary that `apps/ai` builds on:
 
-- **`dtos.py`** — one frozen `@dataclass` per entity the app returns to callers
+- **`dtos.py`** — one Pydantic DTO per entity the app returns to callers
   outside itself (e.g. `TransactionDTO`, `ExpenseDTO`, `PaymentDTO`,
   `InstallmentDTO`), each with a `from_model()` classmethod. Any operation
-  taking more than ~4 parameters must take a single input dataclass named
+  taking more than ~4 parameters must take a single input DTO named
   `<Entity>CreateInput`, `<Entity>UpdateInput`, or `<Entity>ListFilters`.
+  Every DTO extends `apps.core.dtos.BaseDTO` (or its `CamelCaseDTO` /
+  `PascalCaseDTO` variants) — never `@dataclass` or a bare `BaseModel`. See
+  the backend `AGENTS.md` "DTOs" section for the rules.
 - **`services.py`** (writes/business rules) and/or **`selectors.py`** (reads) —
   every entity queried across apps needs a `list_<entity>` function plus `get_`,
   `create_`/`add_`, `update_`, and `delete_` counterparts as needed. These

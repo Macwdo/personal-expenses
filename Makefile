@@ -86,7 +86,6 @@ doctor:
 
 migrate: build-backend
 	$(COMPOSE) run --rm -e DJANGO_MIGRATE=0 api python manage.py migrate --no-input
-	$(COMPOSE) run --rm -e DJANGO_MIGRATE=0 api python manage.py setup_celery_database
 
 seed: build-backend
 	$(COMPOSE) run --rm api python scripts/seed.py

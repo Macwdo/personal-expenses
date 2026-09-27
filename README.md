@@ -77,8 +77,10 @@ http://chat.pingou-<environment>-<checksum>.localhost:1355
 
 Each service also publishes a fixed host port, in case you'd rather hit it
 directly than through Portless: Postgres `5467`, backend `8067`, chat `8167`,
-frontend `9067`, landing `9167`. Override `POSTGRES_HOST_PORT`, `BACKEND_PORT`,
-`CHAT_PORT`, `FRONTEND_PORT`, `LANDING_PORT` in `.env` if you need to run more
+frontend `9067`, landing `9167`, MinIO API `9267`, MinIO console `9367`
+(login `minioadmin`/`minioadmin`). Override `POSTGRES_HOST_PORT`, `BACKEND_PORT`,
+`CHAT_PORT`, `FRONTEND_PORT`, `LANDING_PORT`, `MINIO_PORT`, `MINIO_CONSOLE_PORT`
+in `.env` if you need to run more
 than one environment's containers at once, since only one environment can bind
 a given port at a time. Use `make db-shell` for a quick Postgres shell. The
 generated `.env` is ignored by Git, and `make env-init` refuses to overwrite an
