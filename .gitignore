@@ -3,6 +3,5 @@
 .air/settings.json
 .env
 .env.*
-!.env.example
 __pycache__/
 *.py[cod]

@@ -1,28 +1,14 @@
 # Repository Guidelines
 
-## Required Workspace Skills
-
-Workspace procedures live in `.agents/skills/`. Load and follow the matching
-skill **before** acting; do not reconstruct these workflows from memory.
-
-| Situation | Required skill |
-| --- | --- |
-| Create the local `.env`, start, inspect, seed, stop, or destroy the environment | `$pingou-env` |
-
-Rules:
-
-- Prefer the skill over an equivalent hand-written command sequence. If a skill
-  and this file ever disagree on a command, the skill is authoritative for the
-  procedure and this file is authoritative for the durable rule.
-- Do not run the runtime through ad hoc `docker compose`, `docker`, or shell
-  workflows. Extend the root `Makefile` and the owning skill instead.
-- When a workspace procedure changes, update its skill in the same change.
-
 ## Project Structure & Module Organization
 
-This repository is a Git superproject with four app submodules:
-`pingou-o-que-backend/`, `pingou-o-que-frontend/`,
-`pingou-o-que-landing-page/`, and `pingou-o-que-chat/`. Run
+This repository is a Git superproject and only a workspace: it holds no
+runtime, Compose stack, Makefile or infrastructure. Its submodules are the app
+repositories `pingou-o-que-backend/`, `pingou-o-que-frontend/`,
+`pingou-o-que-landing-page/`, `pingou-o-que-chat/`, and the infrastructure
+repositories `pingou-o-que-infra/` (Kubernetes) and `pingou-o-que-infra-paas/`
+(Terraform). Never add runtime or infrastructure files to the root; they
+belong in the owning child repository. Run
 `git submodule update --init --recursive` after cloning or when pointers change.
 Backend Django settings live in `pingou-o-que-backend/config/`; domain code
 lives in `pingou-o-que-backend/apps/<app>/`; backend tests live beside each app
@@ -45,6 +31,10 @@ utilities in `lib/`, Zustand stores in `stores/`, and static assets in
 - `pingou-o-que-chat`: stateless Go service that relays chat events to browsers.
   It proxies chat-start to Django, verifies tokens against Django, and streams a
   thread's PostgreSQL event log to the client as Server-Sent Events.
+- `pingou-o-que-infra`: the whole stack on a local kind cluster (Kustomize
+  overlay, PostgreSQL and MinIO in-cluster, driven by its Makefile).
+- `pingou-o-que-infra-paas`: Terraform for production on Supabase, Railway and
+  Vercel.
 
 ## Runtime Architecture
 
@@ -60,12 +50,10 @@ Last-Event-ID cursors. PostgreSQL also owns domain data and LangGraph history.
 No Redis, SQS or Supabase Realtime is required.
 
 Private documents use S3-compatible storage through boto3 presigned PUT/GET
-URLs. Locally the root stack runs MinIO (`minio` + one-shot `minio-init`, which
-creates the bucket); Django talks to it at `S3_ENDPOINT_URL` and signs browser
-URLs for `S3_PUBLIC_ENDPOINT_URL`, since a presigned URL is bound to its host.
+URLs. Django talks to storage at `S3_ENDPOINT_URL` and signs browser URLs for
+`S3_PUBLIC_ENDPOINT_URL`, since a presigned URL is bound to its host.
 
-Production uses Supabase PostgreSQL, Auth and private S3 Storage; Railway
-Django/Celery/Beat/Go compute; Vercel frontend/landing. Supabase Auth integration
+Deployment is owned by the infrastructure repositories. Supabase Auth integration
 is still pending; current authentication retains the DEBUG dev-token path.
 Keep production readiness false until Auth and single-user access checks pass.
 Backend AGENTS.md documents SQL broker delivery limitations.
@@ -89,38 +77,9 @@ durable rules are:
   primary checkout, one change at a time, unless the user explicitly asks for
   parallel work.
 - Do not create OpenSpec artifacts or repository spec trees. Keep durable rules
-  in `AGENTS.md` and procedures in `.agents/skills/`.
+  in `AGENTS.md`.
 - Validate and commit in each owning child repository before intentionally
   updating its parent submodule pointer.
-
-## Workspace Environment Operations
-
-Follow `$pingou-env` for the commands. The durable rules are:
-
-- The root repository is the runtime workspace and the root `Makefile` is its
-  only supported operational interface.
-- `.env` is the default environment and points at the four primary child
-  checkouts. Do not create `.env.<feature>` environments unless explicitly
-  requested.
-- Never print, overwrite, or commit `.env` or any other local environment file.
-  The key required by `AI_CHAT_MODEL` must be set locally before chat works.
-- Root services publish fixed default host ports: Postgres `5467`, backend
-  `8067`, chat `8167`, frontend `9067`, landing `9167`, MinIO API `9267`,
-  MinIO console `9367` (`POSTGRES_HOST_PORT`, `BACKEND_PORT`, `CHAT_PORT`,
-  `FRONTEND_PORT`, `LANDING_PORT`, `MINIO_PORT`, `MINIO_CONSOLE_PORT` in `.env`).
-  Only one environment can bind a given port at a time — override these per
-  `.env.<name>` file when running more than one stack concurrently. Portless
-  still publishes the stable hostnames reported by `make urls`.
-- `make up`, `make dev`, and `make seed` reset fixture-owned domain data;
-  `make destroy` also deletes volumes and images. Confirm with the user before
-  running them when local state matters.
-
-## Build, Test, and Development Commands
-
-Use `$pingou-env` from the workspace root for everything: it runs the full
-stack through `make up` in Docker. Commands for running a single repository in
-isolation, outside Docker, are documented in the root `README.md` for manual,
-human-driven use — not part of the standard agent workflow.
 
 ## Coding Style & Naming Conventions
 
@@ -188,4 +147,4 @@ Root history mainly uses concise imperative commits such as `chore: update app s
 
 ## Security & Configuration Tips
 
-Do not commit secrets or local `.env*` files. Backend runtime settings use `.env`; Docker Compose may use `.env.development`. PostgreSQL supplies Celery broker/results and chat streaming. Keep submodule pointer updates intentional and mention them in PRs.
+Do not commit secrets or local `.env*` files; each child repository owns its own environment files. PostgreSQL supplies Celery broker/results and chat streaming. Keep submodule pointer updates intentional and mention them in PRs.
