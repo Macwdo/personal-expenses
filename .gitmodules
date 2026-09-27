@@ -13,3 +13,6 @@
 [submodule "pingou-o-que-infra"]
 	path = pingou-o-que-infra
 	url = https://github.com/Macwdo/pingou-o-que-infra.git
+[submodule "pingou-o-que-k8s"]
+	path = pingou-o-que-k8s
+	url = git@gitlab.com:pingou-o-que/k8s.git
